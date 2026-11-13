@@ -1,151 +1,94 @@
-schemaVersion: 2.3.0
+---
+# cspell: disable=devspaces
+schemaVersion: 2.2.2
 metadata:
-  name: ansible-governance-workspace
-attributes:
-  controller.devfile.io/storage-type: per-user
+  name: devspaces-ansible-demo-pnc
 components:
   - name: tooling-container
     container:
-      image: image-registry.openshift-image-registry.svc:5000/devspaces/ansible-governance-devspaces:local
-      memoryRequest: 1Gi
-      memoryLimit: 8Gi
+      image: ghcr.io/ansible/ansible-devspaces@sha256:e513e3c37e8e49b3d8c2e834b1349cd56654e53b962c9dd6f1fd107f8d5a0d4b
+      memoryRequest: 256M
+      memoryLimit: 6Gi
       cpuRequest: 250m
-      cpuLimit: "4"
-      mountSources: true
-      args:
-        - sleep
-        - infinity
+      cpuLimit: 2000m
+      args: [tail, -f, /dev/null]
       env:
-        - name: ANSIBLE_CONFIG
-          value: /home/user/.ansible/ansible.cfg
-        - name: ANSIBLE_NAVIGATOR_CONFIG
-          value: /opt/ansible-governance/devspaces/config/ansible-navigator.yml
-        - name: ANSIBLE_GOVERNANCE_RULESDIR
-          value: /opt/ansible-governance/devspaces/ansible-lint-rules/governance
-        - name: ANSIBLE_LINT_CUSTOM_RULESDIR
-          value: /opt/ansible-governance/devspaces/ansible-lint-rules
-        - name: CONFTEST_POLICY
-          value: /opt/ansible-governance/devspaces/policies/ansible
-        - name: DEFAULT_EXTENSIONS
-          value: /opt/ansible-governance/devspaces/extensions/openai-chatgpt.vsix;/opt/ansible-governance/devspaces/extensions/GitHub-copilot.vsix;/opt/ansible-governance/devspaces/extensions/GitHub-copilot-chat.vsix;/opt/ansible-governance/devspaces/extensions/redhat-devspaces-copilot-chat-integration.vsix;/opt/ansible-governance/devspaces/extensions/ms-python-python.vsix;/opt/ansible-governance/devspaces/extensions/ms-python-vscode-python-envs.vsix;/opt/ansible-governance/devspaces/extensions/redhat-vscode-yaml.vsix;/opt/ansible-governance/devspaces/extensions/redhat-vscode-redhat-account.vsix;/opt/ansible-governance/devspaces/extensions/redhat-ansible.vsix;/opt/ansible-governance/devspaces/extensions/redhat-vscode-openshift-connector.vsix
+        - name: ANSIBLE_COLLECTIONS_PATH
+          value: ~/.ansible/collections:/usr/share/ansible/collections:/projects/ansible-devspaces-demo/collections
         - name: KUBEDOCK_ENABLED
           value: "true"
-        - name: KUBEDOCK_PARAMS
-          value: "--reverse-proxy --kubeconfig /home/user/.kube/config"
-        - name: DOCKER_HOST
-          value: tcp://127.0.0.1:2475
-        - name: TESTCONTAINERS_RYUK_DISABLED
-          value: "true"
-        - name: TESTCONTAINERS_CHECKS_DISABLE
-          value: "true"
-        - name: GIT_SSH_COMMAND
-          value: ssh -F /home/user/.ssh/config
-        - name: ANSIBLE_GALAXY_AUTO_INSTALL
-          value: "true"
-        - name: PRE_COMMIT_AUTO_INSTALL_HOOKS
-          value: "true"
-        - name: PRE_COMMIT_INSTALL_REQUIRED
-          value: "true"
-        - name: PRE_COMMIT_REQUIRE_CONFIG
-          value: "true"
-        - name: PRE_COMMIT_USE_MANAGED_CONFIG
-          value: "true"
-        - name: WORKSPACE_BOOTSTRAP_STRICT
-          value: "false"
-        - name: ANSIBLE_GALAXY_REQUIRE_CONFIG
-          value: "true"
-        - name: ANSIBLE_GALAXY_ENFORCE_SOURCE_ALLOWLIST
-          value: "true"
-        - name: ANSIBLE_GALAXY_AUTO_INSTALL_ROLES
-          value: "false"
-        - name: ANSIBLE_DEVSPACES_INVENTORY
-          value: /home/user/.ansible/inventory/devspaces.kubevirt.yml
-        - name: ANSIBLE_DEVSPACES_INVENTORY_AUTO_RENDER
-          value: "true"
-        - name: ANSIBLE_DEVSPACES_VM_LABEL_SELECTOR
-          value: devspaces.example.com/inventory=true
-        - name: ANSIBLE_DEVSPACES_VM_USE_SERVICE
-          value: "true"
-      endpoints:
-        - name: kubedock
-          targetPort: 2475
-          exposure: none
-          protocol: tcp
 commands:
-  - id: bootstrap-workspace
+  - id: molecule-create
     exec:
-      component: tooling-container
-      commandLine: workspace-bootstrap
-      group:
-        kind: build
-        isDefault: true
-  - id: smoke-test
-    exec:
-      component: tooling-container
-      commandLine: workspace-smoke-test
-      group:
-        kind: test
-        isDefault: true
-  - id: install-ansible-deps
-    exec:
-      component: tooling-container
-      workingDir: ${PROJECTS_ROOT}/${PROJECT_SOURCE}
-      commandLine: workspace-install-ansible-deps
-      group:
-        kind: build
-  - id: verify-galaxy-config
-    exec:
-      component: tooling-container
-      commandLine: workspace-verify-galaxy-config
-      group:
-        kind: test
-  - id: render-devspaces-inventory
-    exec:
-      component: tooling-container
-      commandLine: workspace-render-kubevirt-inventory
-      group:
-        kind: build
-  - id: show-devspaces-inventory
-    exec:
-      component: tooling-container
-      commandLine: workspace-render-kubevirt-inventory && ansible-inventory -i ${ANSIBLE_DEVSPACES_INVENTORY} --graph
-      group:
-        kind: test
-  - id: ansible-navigator
-    exec:
-      component: tooling-container
-      workingDir: ${PROJECTS_ROOT}/${PROJECT_SOURCE}
-      commandLine: ansible-navigator --ee true
+      label: "1.Molecule: start a test pod for the automation"
+      commandLine: source $HOME/.bashrc && molecule create
+      workingDir: ${PROJECTS_ROOT}/ansible-devspaces-demo/collections/ansible_collections/sample_namespace/sample_collection/extensions
       group:
         kind: run
+        isDefault: true
+      component: tooling-container
+
+  - id: molecule-list
+    exec:
+      label: "2.Molecule: view the test instance that was created"
+      commandLine: source $HOME/.bashrc && molecule list
+      workingDir: ${PROJECTS_ROOT}/ansible-devspaces-demo/collections/ansible_collections/sample_namespace/sample_collection/extensions
+      group:
+        kind: run
+        isDefault: true
+      component: tooling-container
+
+  - id: molecule-converge
+    exec:
+      label: "3.Molecule: apply the role to the pod"
+      commandLine: source $HOME/.bashrc && molecule converge
+      workingDir: ${PROJECTS_ROOT}/ansible-devspaces-demo/collections/ansible_collections/sample_namespace/sample_collection/extensions
+      group:
+        kind: run
+        isDefault: true
+      component: tooling-container
+
+  - id: molecule-verify
+    exec:
+      label: "4.Molecule: run the verification against the test pod"
+      commandLine: source $HOME/.bashrc && molecule verify
+      workingDir: ${PROJECTS_ROOT}/ansible-devspaces-demo/collections/ansible_collections/sample_namespace/sample_collection/extensions
+      group:
+        kind: run
+        isDefault: true
+      component: tooling-container
+
+  - id: molecule-destroy
+    exec:
+      label: "5.Molecule: reset the test pod back to a fresh instance"
+      commandLine: source $HOME/.bashrc && molecule destroy
+      workingDir: ${PROJECTS_ROOT}/ansible-devspaces-demo/collections/ansible_collections/sample_namespace/sample_collection/extensions
+      group:
+        kind: run
+        isDefault: true
+      component: tooling-container
+
   - id: molecule-test
     exec:
-      component: tooling-container
-      workingDir: ${PROJECTS_ROOT}/${PROJECT_SOURCE}
-      commandLine: molecule test
+      label: "6.Molecule: run the full molecule test"
+      commandLine: source $HOME/.bashrc && molecule test
+      workingDir: ${PROJECTS_ROOT}/ansible-devspaces-demo/collections/ansible_collections/sample_namespace/sample_collection/extensions
       group:
-        kind: test
-  - id: ansible-lint
+        kind: run
+        isDefault: true
+      component: tooling-container
+
+  - id: ansible-navigator
     exec:
+      label: "Ansible-Navigator: Start ansible-navigator"
+      commandLine: |
+        if [ ! -d "$HOME/.cache/ansible-navigator" ]; then
+          mkdir -p "$HOME/.cache/ansible-navigator"
+        fi
+        cp /usr/local/lib/python3.11/site-packages/ansible_navigator/data/catalog_collections.py $HOME/.cache/ansible-navigator
+        ansible-navigator --ee false
+      workingDir: ${PROJECTS_ROOT}/ansible-devspaces-demo
       component: tooling-container
-      workingDir: ${PROJECTS_ROOT}/${PROJECT_SOURCE}
-      commandLine: ansible-lint .
-      group:
-        kind: test
-  - id: pre-commit
-    exec:
-      component: tooling-container
-      workingDir: ${PROJECTS_ROOT}/${PROJECT_SOURCE}
-      commandLine: workspace-pre-commit run --all-files
-      group:
-        kind: test
-  - id: policy-test
-    exec:
-      component: tooling-container
-      workingDir: ${PROJECTS_ROOT}/${PROJECT_SOURCE}
-      commandLine: ansible-governance-conftest .
-      group:
-        kind: test
 events:
-  postStart:
-    - bootstrap-workspace
+  preStop:
+    - molecule-destroy
