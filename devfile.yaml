@@ -1,0 +1,151 @@
+schemaVersion: 2.3.0
+metadata:
+  name: ansible-governance-workspace
+attributes:
+  controller.devfile.io/storage-type: per-user
+components:
+  - name: tooling-container
+    container:
+      image: image-registry.openshift-image-registry.svc:5000/devspaces/ansible-governance-devspaces:local
+      memoryRequest: 1Gi
+      memoryLimit: 8Gi
+      cpuRequest: 250m
+      cpuLimit: "4"
+      mountSources: true
+      args:
+        - sleep
+        - infinity
+      env:
+        - name: ANSIBLE_CONFIG
+          value: /home/user/.ansible/ansible.cfg
+        - name: ANSIBLE_NAVIGATOR_CONFIG
+          value: /opt/ansible-governance/devspaces/config/ansible-navigator.yml
+        - name: ANSIBLE_GOVERNANCE_RULESDIR
+          value: /opt/ansible-governance/devspaces/ansible-lint-rules/governance
+        - name: ANSIBLE_LINT_CUSTOM_RULESDIR
+          value: /opt/ansible-governance/devspaces/ansible-lint-rules
+        - name: CONFTEST_POLICY
+          value: /opt/ansible-governance/devspaces/policies/ansible
+        - name: DEFAULT_EXTENSIONS
+          value: /opt/ansible-governance/devspaces/extensions/openai-chatgpt.vsix;/opt/ansible-governance/devspaces/extensions/GitHub-copilot.vsix;/opt/ansible-governance/devspaces/extensions/GitHub-copilot-chat.vsix;/opt/ansible-governance/devspaces/extensions/redhat-devspaces-copilot-chat-integration.vsix;/opt/ansible-governance/devspaces/extensions/ms-python-python.vsix;/opt/ansible-governance/devspaces/extensions/ms-python-vscode-python-envs.vsix;/opt/ansible-governance/devspaces/extensions/redhat-vscode-yaml.vsix;/opt/ansible-governance/devspaces/extensions/redhat-vscode-redhat-account.vsix;/opt/ansible-governance/devspaces/extensions/redhat-ansible.vsix;/opt/ansible-governance/devspaces/extensions/redhat-vscode-openshift-connector.vsix
+        - name: KUBEDOCK_ENABLED
+          value: "true"
+        - name: KUBEDOCK_PARAMS
+          value: "--reverse-proxy --kubeconfig /home/user/.kube/config"
+        - name: DOCKER_HOST
+          value: tcp://127.0.0.1:2475
+        - name: TESTCONTAINERS_RYUK_DISABLED
+          value: "true"
+        - name: TESTCONTAINERS_CHECKS_DISABLE
+          value: "true"
+        - name: GIT_SSH_COMMAND
+          value: ssh -F /home/user/.ssh/config
+        - name: ANSIBLE_GALAXY_AUTO_INSTALL
+          value: "true"
+        - name: PRE_COMMIT_AUTO_INSTALL_HOOKS
+          value: "true"
+        - name: PRE_COMMIT_INSTALL_REQUIRED
+          value: "true"
+        - name: PRE_COMMIT_REQUIRE_CONFIG
+          value: "true"
+        - name: PRE_COMMIT_USE_MANAGED_CONFIG
+          value: "true"
+        - name: WORKSPACE_BOOTSTRAP_STRICT
+          value: "false"
+        - name: ANSIBLE_GALAXY_REQUIRE_CONFIG
+          value: "true"
+        - name: ANSIBLE_GALAXY_ENFORCE_SOURCE_ALLOWLIST
+          value: "true"
+        - name: ANSIBLE_GALAXY_AUTO_INSTALL_ROLES
+          value: "false"
+        - name: ANSIBLE_DEVSPACES_INVENTORY
+          value: /home/user/.ansible/inventory/devspaces.kubevirt.yml
+        - name: ANSIBLE_DEVSPACES_INVENTORY_AUTO_RENDER
+          value: "true"
+        - name: ANSIBLE_DEVSPACES_VM_LABEL_SELECTOR
+          value: devspaces.example.com/inventory=true
+        - name: ANSIBLE_DEVSPACES_VM_USE_SERVICE
+          value: "true"
+      endpoints:
+        - name: kubedock
+          targetPort: 2475
+          exposure: none
+          protocol: tcp
+commands:
+  - id: bootstrap-workspace
+    exec:
+      component: tooling-container
+      commandLine: workspace-bootstrap
+      group:
+        kind: build
+        isDefault: true
+  - id: smoke-test
+    exec:
+      component: tooling-container
+      commandLine: workspace-smoke-test
+      group:
+        kind: test
+        isDefault: true
+  - id: install-ansible-deps
+    exec:
+      component: tooling-container
+      workingDir: ${PROJECTS_ROOT}/${PROJECT_SOURCE}
+      commandLine: workspace-install-ansible-deps
+      group:
+        kind: build
+  - id: verify-galaxy-config
+    exec:
+      component: tooling-container
+      commandLine: workspace-verify-galaxy-config
+      group:
+        kind: test
+  - id: render-devspaces-inventory
+    exec:
+      component: tooling-container
+      commandLine: workspace-render-kubevirt-inventory
+      group:
+        kind: build
+  - id: show-devspaces-inventory
+    exec:
+      component: tooling-container
+      commandLine: workspace-render-kubevirt-inventory && ansible-inventory -i ${ANSIBLE_DEVSPACES_INVENTORY} --graph
+      group:
+        kind: test
+  - id: ansible-navigator
+    exec:
+      component: tooling-container
+      workingDir: ${PROJECTS_ROOT}/${PROJECT_SOURCE}
+      commandLine: ansible-navigator --ee true
+      group:
+        kind: run
+  - id: molecule-test
+    exec:
+      component: tooling-container
+      workingDir: ${PROJECTS_ROOT}/${PROJECT_SOURCE}
+      commandLine: molecule test
+      group:
+        kind: test
+  - id: ansible-lint
+    exec:
+      component: tooling-container
+      workingDir: ${PROJECTS_ROOT}/${PROJECT_SOURCE}
+      commandLine: ansible-lint .
+      group:
+        kind: test
+  - id: pre-commit
+    exec:
+      component: tooling-container
+      workingDir: ${PROJECTS_ROOT}/${PROJECT_SOURCE}
+      commandLine: workspace-pre-commit run --all-files
+      group:
+        kind: test
+  - id: policy-test
+    exec:
+      component: tooling-container
+      workingDir: ${PROJECTS_ROOT}/${PROJECT_SOURCE}
+      commandLine: ansible-governance-conftest .
+      group:
+        kind: test
+events:
+  postStart:
+    - bootstrap-workspace
